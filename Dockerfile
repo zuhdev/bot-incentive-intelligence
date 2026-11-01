@@ -11,10 +11,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ARG DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build?schema=public
 ARG DIRECT_DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build?schema=public
-ARG AUTH_SECRET=build-only-secret-0123456789abcdef0123456789abcdef
 ENV DATABASE_URL=$DATABASE_URL
 ENV DIRECT_DATABASE_URL=$DIRECT_DATABASE_URL
-ENV AUTH_SECRET=$AUTH_SECRET
 ENV BOT_NETWORK=testnet
 RUN npm run build:postgres
 
