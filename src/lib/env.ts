@@ -20,7 +20,7 @@ const schema = z.object({
   INGEST_BACKFILL_MAX_BLOCKS: z.coerce.number().int().positive().default(500_000),
   REDIS_URL: z.string().optional(),
   COINGECKO_API_KEY: z.string().optional(),
-  NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
+  NEXT_PUBLIC_APP_URL: z.string().url().optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 
@@ -34,19 +34,18 @@ if (!parsed.success) {
 }
 
 const base = parsed.success ? parsed.data : schema.parse({});
-const selectedNetwork = base.BOT_NETWORK ?? "mainnet";
+const selectedNetwork = base.BOT_NETWORK ?? (base.NODE_ENV === "production" ? "testnet" : "mainnet");
+const vercelHost = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
+const appUrl = base.NEXT_PUBLIC_APP_URL ?? (vercelHost ? `https://${vercelHost}` : "http://localhost:3000");
 if (process.env.NODE_ENV === "production") {
-  if (!process.env.BOT_NETWORK) {
-    throw new Error("[env] Set BOT_NETWORK explicitly to 'testnet' or 'mainnet' in the Vercel Production environment.");
-  }
   if (!process.env.DATABASE_URL || !/^postgres(?:ql)?:\/\//i.test(base.DATABASE_URL)) {
     throw new Error("[env] Production deployments require PostgreSQL; SQLite is supported for local development only.");
   }
   if (!base.DIRECT_DATABASE_URL) {
     throw new Error("[env] DIRECT_DATABASE_URL is required for PostgreSQL migrations and client generation in production.");
   }
-  if (base.NEXT_PUBLIC_APP_URL.includes("localhost")) {
-    throw new Error("[env] Set NEXT_PUBLIC_APP_URL to the deployed HTTPS app URL in the Vercel Production environment.");
+  if (appUrl.includes("localhost")) {
+    throw new Error("[env] Set NEXT_PUBLIC_APP_URL or deploy on Vercel so its deployment URL can be used for the sign-in domain.");
   }
 }
 const testnet = selectedNetwork === "testnet";
@@ -55,6 +54,7 @@ const testnet = selectedNetwork === "testnet";
 const env = {
   ...base,
   BOT_NETWORK: selectedNetwork,
+  NEXT_PUBLIC_APP_URL: appUrl,
   DIRECT_DATABASE_URL: base.DIRECT_DATABASE_URL ?? base.DATABASE_URL,
   BOT_CHAIN_ID: testnet ? base.BOT_TESTNET_CHAIN_ID : base.BOT_MAINNET_CHAIN_ID,
   BOT_RPC_URL: testnet ? base.BOT_TESTNET_RPC_URL : base.BOT_MAINNET_RPC_URL,

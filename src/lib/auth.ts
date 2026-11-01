@@ -38,7 +38,7 @@ function buildChallengeMessage(address: string, nonce: string, domain: string): 
 export async function createChallenge(address: string): Promise<{ message: string; nonce: string }> {
   const addr = normalizeAddress(address);
   const nonce = randomBytes(16).toString("hex");
-  const domain = process.env.NEXT_PUBLIC_APP_URL?.replace(/^https?:\/\//, "") ?? "localhost:3000";
+  const domain = env.NEXT_PUBLIC_APP_URL.replace(/^https?:\/\//, "");
   const wallet = await prisma.wallet.upsert({
     where: { address: addr },
     create: { address: addr, chainId: env.BOT_CHAIN_ID },

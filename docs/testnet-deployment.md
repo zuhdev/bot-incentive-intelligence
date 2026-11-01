@@ -42,11 +42,11 @@ BDEX_API_ENABLED=false
 
 For a pooled PostgreSQL provider, use its pooled endpoint for `DATABASE_URL` and direct/unpooled endpoint for `DIRECT_DATABASE_URL` (used by migrations). Testnet RPC, chain ID and explorer defaults are supplied by the application. Override them only when operating a verified private/testnet provider. `BDEX_API_ENABLED=false` is explicit; BDEX and DeFiLlama's BOT Chain TVL remain blocked in testnet mode even if somebody accidentally changes that flag. Secrets must be configured in the host dashboard, not committed to this repository.
 
-Production builds require an explicit `BOT_NETWORK`, PostgreSQL `DATABASE_URL`, `DIRECT_DATABASE_URL`, and a non-local `NEXT_PUBLIC_APP_URL`. Sessions use random opaque tokens stored as hashes in the database; there is no separate `AUTH_SECRET` requirement.
+Production builds require PostgreSQL `DATABASE_URL` and `DIRECT_DATABASE_URL`. If `BOT_NETWORK` is omitted in production, it defaults to `testnet`; set it explicitly when configuring Vercel for clarity. `NEXT_PUBLIC_APP_URL` can be set to the custom production domain; otherwise the app derives it from Vercel's deployment URL. Sessions use random opaque tokens stored as hashes in the database; there is no separate `AUTH_SECRET` requirement.
 
 ## First deployment / database initialization
 
-Run from the project root with `DATABASE_URL`, `DIRECT_DATABASE_URL`, `NEXT_PUBLIC_APP_URL`, and `BOT_NETWORK=testnet` available:
+Run from the project root with `DATABASE_URL` and `DIRECT_DATABASE_URL` available; set `BOT_NETWORK=testnet` for clarity:
 
 ```bash
 npm ci
@@ -64,8 +64,8 @@ For subsequent deployments, repeat `db:deploy:postgres` before the application r
 ## Vercel web/API service
 
 1. Import the repository into Vercel and configure the project root.
-2. Add `BOT_NETWORK=testnet`, `DATABASE_URL`, `DIRECT_DATABASE_URL`, and `NEXT_PUBLIC_APP_URL` to Vercel's **Production** environment. The included `vercel.json` selects `npm run build:postgres`. Rebuild whenever `BOT_NETWORK` changes because it controls the visible network banner and should match the server's network selection.
-3. Set the managed PostgreSQL URLs as protected environment variables and set the application URL to the deployed HTTPS URL.
+2. Add `DATABASE_URL` and `DIRECT_DATABASE_URL` to Vercel's **Production** environment. `BOT_NETWORK` defaults to `testnet` in production; optionally set it explicitly. The included `vercel.json` selects `npm run build:postgres`.
+3. Set the managed PostgreSQL URLs as protected environment variables. Set `NEXT_PUBLIC_APP_URL` if using a custom domain; otherwise the app uses Vercel's deployment URL. Rebuild whenever `BOT_NETWORK` changes so the build and runtime network stay aligned.
 4. Before first traffic, run `npm run db:prepare:postgres`, `npm run db:deploy:postgres`, and `npm run db:seed` from a trusted release environment with the same database credentials.
 5. Configure function duration/region based on the Vercel plan and database region. Long historical ingestion belongs in the worker service, not a user-facing request.
 6. Deploy. Verify `/api/network` reports `network: "testnet"`, `chainId: 968`, and check `/api/health`.
