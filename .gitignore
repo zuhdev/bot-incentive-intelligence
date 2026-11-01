@@ -1,0 +1,40 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# next.js
+.next/
+out/
+build/
+
+# env
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.secrets/
+*.keystore
+*.keystore.json
+
+# database
+prisma/dev.db
+prisma/dev.db-journal
+*.sqlite
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
+npm-install*.log
+*.log
+tsconfig.tsbuildinfo
+next-env.d.ts
+
+# vercel
+.vercel
+
+# testing
+coverage/
+docs/poc-results.json

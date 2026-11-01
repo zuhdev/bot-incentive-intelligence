@@ -1,0 +1,656 @@
+// BOT Incentive Intelligence — database schema
+//
+// Provider notes:
+// - Local dev uses this SQLite schema (zero-infrastructure, runnable repo).
+// - Testnet deployment uses a generated PostgreSQL schema at
+//   prisma/postgres/schema.prisma plus its separate migration history. The
+//   generation script changes only the datasource provider; do not point the
+//   SQLite migration directory at PostgreSQL.
+// - All monetary/amount columns use Decimal or string base units. Floating
+//   point is never used for financial eligibility math.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+// ───────────────────────────── Users & auth ─────────────────────────────
+
+model User {
+  id            String   @id @default(cuid())
+  // Email is optional: wallet-first authentication.
+  email         String?  @unique
+  displayName   String?
+  role          String   @default("member") // super_admin | member
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  wallets        Wallet[]
+  memberships    ProjectMember[]
+  sessions       Session[]
+}
+
+model Wallet {
+  id           String   @id @default(cuid())
+  address      String   @unique // lowercase EVM address
+  chainId      Int
+  // Set when ownership has been proven via message signature.
+  verifiedAt   DateTime?
+  verifiedBy   String? // signature method, e.g. "personal_sign"
+  firstSeenAt  DateTime?
+  createdAt    DateTime @default(now())
+
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id])
+
+  authChallenges AuthChallenge[]
+}
+
+model AuthChallenge {
+  id        String   @id @default(cuid())
+  walletId  String
+  wallet    Wallet   @relation(fields: [walletId], references: [id])
+  nonce     String   @unique
+  message   String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  consumedAt DateTime?
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  tokenHash String   @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+}
+
+// ─────────────────────────── Projects & members ─────────────────────────
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  logoUrl     String?
+  website     String?
+  twitter     String?
+  github      String?
+  telegram    String?
+  category    String   @default("other") // defi | gaming | infra | nft | social | other
+  deployStatus String  @default("planned") // planned | testnet | mainnet
+  defiLlamaSlug String? // verified DeFiLlama protocol identifier
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members     ProjectMember[]
+  addresses   ProjectAddress[]
+  schemes     ProjectScheme[]
+  metrics     ProjectMetric[]
+  eligibility EligibilityResult[]
+  evidence    EvidenceReport[]
+  alerts      Alert[]
+  tvlSnapshots  TvlSnapshot[]
+  dexPairs    DexPair[]
+  gasUsage    GasUsageDaily[]
+}
+
+model ProjectMember {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  role      String   @default("viewer") // owner | admin | analyst | viewer
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, userId])
+}
+
+model ProjectAddress {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  address   String // lowercase
+  label     String?
+  type      String   @default("other") // project_contract | token_contract | treasury | team_wallet | dex_pool | user_contract | other
+  chainId   Int
+  schemes   String   @default("[]") // JSON array of scheme codes this address feeds
+  verified  Boolean  @default(false) // ownership proven by signature (EOA) or deployment (contract)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, address, chainId])
+  @@index([address])
+}
+
+// ───────────────────────── Incentive programmes ─────────────────────────
+
+model IncentiveScheme {
+  id       String @id @default(cuid())
+  code     String @unique // SCHEME_A | SCHEME_B | SCHEME_C | SCHEME_D | GAS_REBATE
+  name     String
+  status   String @default("seed") // seed | active | paused
+  sourceUrl String // official programme URL
+  notes    String?
+
+  versions SchemeVersion[]
+  projects ProjectScheme[]
+  rules    IncentiveRule[]
+  metrics  IncentiveMetric[]
+}
+
+model SchemeVersion {
+  id          String   @id @default(cuid())
+  schemeId    String
+  scheme      IncentiveScheme @relation(fields: [schemeId], references: [id])
+  version     String // e.g. "2026-10-seed"
+  effectiveAt DateTime
+  lastVerifiedAt DateTime?
+  // Full JSON snapshot of the programme definition as understood at this
+  // version, including unresolved interpretations.
+  definition  String
+  createdAt   DateTime @default(now())
+
+  @@unique([schemeId, version])
+}
+
+model IncentiveRule {
+  id          String @id @default(cuid())
+  schemeId    String
+  scheme      IncentiveScheme @relation(fields: [schemeId], references: [id])
+  key         String // stable rule key, e.g. "scheme_c.min_bot_balance"
+  value       String // value as string (numeric strings, JSON, enum)
+  valueType   String @default("string") // string | number | json | boolean
+  unit        String?
+  description String?
+  // interpretation: confirmed | provisional | unresolved
+  interpretation String @default("confirmed")
+  interpretationNote String?
+  version     String // SchemeVersion.version this rule belongs to
+
+  @@unique([schemeId, key, version])
+}
+
+model IncentiveMetric {
+  id          String @id @default(cuid())
+  schemeId    String
+  scheme      IncentiveScheme @relation(fields: [schemeId], references: [id])
+  key         String // e.g. "unique_wallets", "qualified_tvl"
+  name        String
+  description String?
+  unit        String?
+  direction   String @default("higher_better") // higher_better | lower_better
+
+  @@unique([schemeId, key])
+}
+
+// ─────────────────────────── Project monitoring ─────────────────────────
+
+model ProjectScheme {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  schemeId  String
+  scheme    IncentiveScheme @relation(fields: [schemeId], references: [id])
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, schemeId])
+}
+
+model ProjectMetric {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  schemeId    String
+  metricKey   String
+  // status: verified | provisional | at_risk | not_met | insufficient_data | manual_review
+  status      String
+  value       String? // decimal string or JSON
+  target      String?
+  progressPct Decimal?
+  periodStart DateTime?
+  periodEnd   DateTime?
+  evaluatedAt DateTime
+  rulesVersion String
+  methodology String?
+  attribution String? // data provenance summary (sources + timestamps)
+  unresolved  String? // JSON array of unresolved assumption strings
+  createdAt   DateTime @default(now())
+
+  @@unique([projectId, schemeId, metricKey, rulesVersion, periodStart, periodEnd])
+  @@index([projectId, schemeId])
+}
+
+model EligibilityResult {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  schemeId    String
+  schemeCode  String
+  tier        String?
+  // status: provisional | not_met | insufficient_data | manual_review | qualified
+  status      String
+  scorePct    Decimal?
+  periodStart DateTime
+  periodEnd   DateTime
+  rulesVersion String
+  details     String // JSON: per-requirement breakdown
+  calculatedAt DateTime @default(now())
+
+  @@index([projectId, schemeCode])
+}
+
+// ─────────────────────────── On-chain data core ─────────────────────────
+
+model Block {
+  id         BigInt   @id // block number
+  chainId    Int
+  hash       String   @unique
+  parentHash String
+  timestamp  DateTime
+  txCount    Int      @default(0)
+  gasUsed    BigInt   @default(0)
+  ingestedAt DateTime @default(now())
+
+  @@unique([chainId, id])
+  @@index([chainId, timestamp])
+}
+
+model Transaction {
+  hash       String   @id
+  chainId    Int
+  blockId    BigInt
+  index      Int
+  from       String
+  to         String?
+  value      String   @default("0") // wei as decimal string
+  gasUsed    String   @default("0")
+  gasPrice   String   @default("0")
+  status     Int // 1 success, 0 failed
+  isContractCreation Boolean @default(false)
+  timestamp  DateTime
+  ingestedAt DateTime @default(now())
+
+  @@unique([chainId, hash])
+  @@index([chainId, blockId])
+  @@index([chainId, from, timestamp])
+  @@index([chainId, to, timestamp])
+}
+
+model TransferEvent {
+  // Deterministic id: chainId:txHash:logIndex
+  id         String   @id
+  chainId    Int
+  txHash     String
+  logIndex   Int
+  blockId    BigInt
+  timestamp  DateTime
+  contract   String // token contract address (lowercase)
+  from       String
+  to         String
+  value      String // base units as decimal string
+  tokenDecimals Int?
+  tokenSymbol String?
+  ingestedAt DateTime @default(now())
+
+  @@unique([chainId, txHash, logIndex])
+  @@index([chainId, contract, timestamp])
+  @@index([chainId, from, timestamp])
+  @@index([chainId, to, timestamp])
+  @@index([chainId, blockId])
+}
+
+model DexSwapEvent {
+  // Deterministic id: chainId:txHash:logIndex
+  id         String   @id
+  chainId    Int
+  pool       String // pool contract address (lowercase)
+  poolType   String   @default("v3") // v2 | v3
+  txHash     String
+  logIndex   Int
+  blockId    BigInt
+  timestamp  DateTime
+  // V3: sender is msg.sender of the pool call (router/poolmanager);
+  // recipient is where output went. Neither is guaranteed to be the trader.
+  sender     String?
+  recipient  String?
+  txFrom     String? // transaction origin (EOA or smart account)
+  // attribution: direct | router | smart_account | unknown
+  trader     String?
+  attribution String  @default("unknown")
+  amount0    String
+  amount1    String
+  // signed amounts per Uniswap V3 Swap event semantics
+  sqrtPriceX96 String?
+  liquidity  String?
+  tick       Int?
+  volumeUsd  Decimal?
+  priceUsd   Decimal?
+  ingestedAt DateTime @default(now())
+
+  @@unique([chainId, txHash, logIndex])
+  @@index([chainId, pool, timestamp])
+  @@index([chainId, trader, timestamp])
+}
+
+model LiquidityEvent {
+  // Deterministic id: chainId:txHash:logIndex
+  id         String   @id
+  chainId    Int
+  pool       String
+  poolType   String   @default("v3")
+  kind       String // mint | burn | v2_mint | v2_burn
+  txHash     String
+  logIndex   Int
+  blockId    BigInt
+  timestamp  DateTime
+  owner      String?
+  amount0    String
+  amount1    String
+  amountUsd  Decimal?
+  ingestedAt DateTime @default(now())
+
+  @@unique([chainId, txHash, logIndex])
+  @@index([chainId, pool, timestamp])
+}
+
+model WalletActivity {
+  id        Int      @id @default(autoincrement())
+  chainId   Int
+  wallet    String // lowercase
+  date      DateTime // UTC day (00:00)
+  txHash    String
+  blockId   BigInt
+  toContract String?
+  methodId  String? // 4-byte selector
+  status    Int
+  gasUsed   String   @default("0")
+  // counted: whether this interaction counts toward Scheme C daily caps
+  counted   Boolean  @default(true)
+  ingestedAt DateTime @default(now())
+
+  @@unique([chainId, txHash, wallet, toContract])
+  @@index([chainId, wallet, date])
+  @@index([chainId, date])
+}
+
+model WalletBalanceSnapshot {
+  id        Int      @id @default(autoincrement())
+  chainId   Int
+  wallet    String
+  address   String? // token contract, null = native BOT
+  symbol    String?
+  decimals  Int?
+  blockId   BigInt
+  balance   String // base units decimal string
+  balanceUsd Decimal?
+  takenAt   DateTime
+  ingestedAt DateTime @default(now())
+
+  @@unique([chainId, wallet, address, blockId])
+  @@index([chainId, wallet, takenAt])
+}
+
+model WalletFundingRelationship {
+  id        Int      @id @default(autoincrement())
+  chainId   Int
+  fromWallet String
+  toWallet   String
+  token      String? // null = native
+  totalValueUsd Decimal?
+  txCount    Int      @default(1)
+  firstSeen  DateTime
+  lastSeen   DateTime
+  // clusterId groups addresses sharing an initial funding source.
+  // PRELIMINARY indicator only — does not prove common ownership.
+  clusterId  String?
+  clusterRole String? // source | member
+  ingestedAt DateTime @default(now())
+
+  @@unique([chainId, fromWallet, toWallet, token])
+  @@index([chainId, toWallet])
+  @@index([chainId, clusterId])
+}
+
+model TokenContract {
+  id        String   @id @default(cuid())
+  chainId   Int
+  address   String
+  symbol    String?
+  name      String?
+  decimals  Int?
+  verifiedAt DateTime?
+  source    String? // where metadata came from
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([chainId, address])
+}
+
+model AssetClassification {
+  id        String   @id @default(cuid())
+  chainId   Int
+  address   String // lowercase; "native" for BOT
+  symbol    String?
+  decimals  Int?
+  // category: stablecoin | bot | major | rwa | lsd_lrt | unapproved | pending_review
+  category  String   @default("pending_review")
+  qualified Boolean  @default(false)
+  // source: official | community | operator
+  source    String   @default("operator")
+  sourceUrl String?
+  effectiveAt DateTime @default(now())
+  verified  Boolean  @default(false)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([chainId, address])
+}
+
+model TokenPrice {
+  id        Int      @id @default(autoincrement())
+  symbol    String
+  address   String?
+  chainId   Int?
+  priceUsd  Decimal
+  source    String // provider name, e.g. "defillama", "bdex", "coingecko"
+  sourceUrl String?
+  takenAt   DateTime
+  ingestedAt DateTime @default(now())
+
+  @@unique([symbol, address, takenAt, source])
+  @@index([symbol, takenAt])
+}
+
+// ─────────────────────────────── DEX data ───────────────────────────────
+
+model DexPair {
+  id        String   @id @default(cuid())
+  chainId   Int
+  pair      String // pool address (lowercase)
+  poolType  String   @default("v3")
+  token0    String
+  token1    String
+  symbol0   String?
+  symbol1   String?
+  feeTier   Int?
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id])
+  eligible  Boolean  @default(false) // eligible for Scheme A per programme rules
+  eligibilitySource String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([chainId, pair])
+}
+
+model LiquiditySnapshot {
+  id        Int      @id @default(autoincrement())
+  chainId   Int
+  pair      String
+  tvlUsd    Decimal
+  token0Amount Decimal?
+  token1Amount Decimal?
+  price0Usd Decimal?
+  price1Usd Decimal?
+  source    String
+  takenAt   DateTime // normalised to 00:00 UTC for daily snapshots
+  ingestedAt DateTime @default(now())
+
+  @@unique([chainId, pair, takenAt, source])
+  @@index([chainId, pair, takenAt])
+}
+
+// ─────────────────────────────── TVL data ───────────────────────────────
+
+model TvlSnapshot {
+  id        Int      @id @default(autoincrement())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  date      DateTime // 00:00 UTC exactly
+  // Raw protocol TVL from DeFiLlama (all chains) — NEVER treated as qualified.
+  protocolTvlUsd Decimal?
+  chainTvlUsd  Decimal? // BOT Chain-attributed TVL from DeFiLlama
+  // Qualified TVL computed by our engine per asset registry.
+  qualifiedTvlUsd Decimal?
+  pendingTvlUsd   Decimal?
+  excludedTvlUsd  Decimal?
+  breakdown    String? // JSON asset-level breakdown
+  source      String
+  sourceUrl   String?
+  retrievedAt DateTime
+  createdAt   DateTime @default(now())
+
+  @@unique([projectId, date, source])
+  @@index([projectId, date])
+}
+
+// ──────────────────────────── Gas / rebates ─────────────────────────────
+
+model GasUsageDaily {
+  id        Int      @id @default(autoincrement())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  date      DateTime
+  gasUsed   String // total gas units
+  botSpent  Decimal // BOT spent (wei -> BOT decimal)
+  botPriceUsd Decimal?
+  usdSpent  Decimal?
+  txCount   Int      @default(0)
+  source    String
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, date, source])
+  @@index([projectId, date])
+}
+
+// ─────────────────────────── Evidence & reports ─────────────────────────
+
+model EvidenceReport {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  schemeCode  String
+  rulesVersion String
+  periodStart DateTime
+  periodEnd   DateTime
+  // SHA-256 of canonical report JSON — deterministic given same inputs.
+  reportHash  String
+  payload     String // canonical JSON report
+  format      String   @default("json") // json | csv | pdf
+  createdAt   DateTime @default(now())
+  createdBy   String?
+
+  items       EvidenceItem[]
+
+  @@unique([projectId, schemeCode, rulesVersion, periodStart, periodEnd, format])
+  @@index([projectId, createdAt])
+}
+
+model EvidenceItem {
+  id        String  @id @default(cuid())
+  reportId  String
+  report    EvidenceReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  kind      String // block | transaction | log | api_response | price | snapshot | rule
+  source    String
+  sourceUrl String?
+  reference String // block number / tx hash / API path
+  retrievedAt DateTime
+  payload   String? // JSON snapshot of the evidence
+}
+
+// ──────────────────────────── Alerts ────────────────────────────────────
+
+model Alert {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // severity: info | warning | critical
+  severity  String   @default("info")
+  // kind: threshold_approach | threshold_breach | data_gap | provider_outage | rules_change | asset_change
+  kind      String
+  title     String
+  body      String?
+  // status: open | acknowledged | resolved
+  status    String   @default("open")
+  dedupeKey String? // prevents duplicate alerts
+  metadata  String?
+  createdAt DateTime @default(now())
+  resolvedAt DateTime?
+
+  @@unique([projectId, dedupeKey])
+  @@index([projectId, status])
+}
+
+// ──────────────────────── Ingestion infrastructure ──────────────────────
+
+model DataProvider {
+  id        String   @id @default(cuid())
+  name      String   @unique // rpc_mainnet | botscan | bdex | defillama | prices
+  kind      String // rpc | explorer | dex | tvl | prices
+  baseUrl   String?
+  enabled   Boolean  @default(true)
+  lastCheckAt DateTime?
+  lastOkAt  DateTime?
+  lastError String?
+  latencyMs Int?
+  notes     String?
+}
+
+model IngestionJob {
+  id        Int      @id @default(autoincrement())
+  kind      String // backfill_blocks | backfill_transfers | backfill_swaps | tvl_snapshot | price_snapshot | funding_scan
+  status    String   @default("queued") // queued | running | done | failed | cancelled
+  chainId   Int?
+  params    String? // JSON
+  progress  Int      @default(0)
+  total     Int?
+  error     String?
+  startedAt DateTime?
+  finishedAt DateTime?
+  createdAt DateTime @default(now())
+
+  checkpoints IngestionCheckpoint[]
+}
+
+model IngestionCheckpoint {
+  id        Int      @id @default(autoincrement())
+  jobId     Int?
+  job       IngestionJob? @relation(fields: [jobId], references: [id])
+  kind      String // block_cursor | transfer_cursor | swap_cursor | tvl_day
+  chainId   Int
+  key       String? // e.g. address or pair the cursor belongs to
+  lastBlock BigInt?
+  lastDate  DateTime?
+  updatedAt DateTime @updatedAt
+
+  @@unique([kind, chainId, key])
+}

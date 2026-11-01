@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg-primary: #0a0d12;
+  --color-bg-secondary: #0f141b;
+  --color-bg-elevated: #151b24;
+  --color-border-subtle: #1e2630;
+  --color-border-strong: #2a3442;
+  --color-text-primary: #e8edf2;
+  --color-text-secondary: #9aa7b4;
+  --color-text-muted: #64707d;
+  --color-accent-green: #22c58b;
+  --color-accent-green-dim: #16855e;
+  --color-amber: #e5a13c;
+  --color-red: #e5534b;
+  --color-blue: #4c8dff;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(34, 197, 139, 0.25);
+}
+
+/* Thin scrollbars for the dashboard feel */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+input, select, textarea {
+  color-scheme: dark;
+}
