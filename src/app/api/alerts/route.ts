@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSessionUser, requireProjectAccess } from "@/lib/auth";
+import { getSessionUser, requireProjectAccess, requireSession } from "@/lib/auth";
 import { jsonError } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +26,7 @@ export async function GET(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
+    await requireSession();
     const body = (await req.json()) as { alertId?: string; status?: "acknowledged" | "resolved" };
     if (!body.alertId || !body.status) return NextResponse.json({ error: "alertId and status required" }, { status: 400 });
     const alert = await prisma.alert.findUnique({ where: { id: body.alertId } });

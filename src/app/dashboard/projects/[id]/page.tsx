@@ -51,6 +51,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         </div>
       );
     }
+    if (err instanceof AuthError && err.status === 503) {
+      return <div className="py-16 text-center text-sm text-[var(--color-text-secondary)]">Project workspaces require PostgreSQL. This deployment is currently a read-only preview.</div>;
+    }
     throw err;
   }
 

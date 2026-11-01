@@ -4,10 +4,12 @@
  */
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { databaseAvailable } from "@/lib/db";
 
 export async function getOverview() {
+  if (!databaseAvailable) return { authenticated: false as const, databaseAvailable: false as const };
   const user = await getSessionUser();
-  if (!user) return { authenticated: false as const };
+  if (!user) return { authenticated: false as const, databaseAvailable: true as const };
 
   const memberships = await prisma.projectMember.findMany({
     where: { userId: user.id },
@@ -34,6 +36,7 @@ export async function getOverview() {
 
   return {
     authenticated: true as const,
+    databaseAvailable: true as const,
     stats: {
       projects: memberships.length,
       trackedAddresses: addressCount,

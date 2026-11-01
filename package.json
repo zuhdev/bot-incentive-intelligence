@@ -15,7 +15,7 @@
     "test:watch": "vitest",
     "db:generate": "prisma generate",
     "db:prepare:postgres": "node scripts/prepare-postgres-schema.mjs",
-    "db:generate:postgres": "npm run db:prepare:postgres && prisma generate --schema prisma/postgres/schema.prisma",
+    "db:generate:postgres": "npm run db:prepare:postgres && node scripts/generate-postgres-client.mjs",
     "db:deploy:postgres": "npm run db:prepare:postgres && prisma migrate deploy --schema prisma/postgres/schema.prisma",
     "db:diff:postgres": "npm run db:prepare:postgres && node scripts/generate-postgres-migration.mjs",
     "db:migrate": "prisma migrate dev",
@@ -27,7 +27,8 @@
     "wallet:testnet:balance": "tsx scripts/check-testnet-wallet.ts",
     "contract:testnet:deploy": "tsx scripts/deploy-evidence-anchor.ts",
     "contract:testnet:verify": "tsx scripts/verify-testnet-deployment.ts",
-    "worker": "tsx workers/ingest.ts"
+    "worker": "tsx workers/ingest.ts",
+    "smoke:readonly": "tsx scripts/smoke/readonly-preview.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.16.2",

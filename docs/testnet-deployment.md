@@ -1,6 +1,8 @@
 # BOT Chain testnet deployment
 
-This runbook deploys an isolated **testnet** environment. BOT Chain testnet is chain ID **968**, RPC `https://rpc.bohr.life`, explorer `https://scan.bohr.life`. Live checks are recorded in [`testnet-data-verification.md`](./testnet-data-verification.md).
+This runbook deploys an isolated **testnet** environment. BOT Chain testnet is chain ID **968**, RPC `https://rpc.bohr.life`, explorer `https://scan.bohr.life`. Live checks are recorded in [`testnet-data-verification.md`](./testnet-data-verification.md). The app supports a database-free read-only preview; configure PostgreSQL later to enable persistent/user-specific features.
+
+For a temporary database-free preview, Vercel can build and serve public pages and live provider checks without `DATABASE_URL` or `DIRECT_DATABASE_URL`. In that mode wallet sign-in, workspaces, ingestion, alerts, and evidence persistence are intentionally unavailable. Add PostgreSQL and run the migration/seed steps below to enable the full application.
 
 ## Evidence anchor deployment
 
@@ -19,16 +21,16 @@ Recheck with `BOT_NETWORK=testnet npm run contract:testnet:verify` (PowerShell: 
 ## Deployment topology
 
 - **Web/API:** Vercel (Next.js App Router) or a Node container.
-- **Database:** managed PostgreSQL, TLS enabled.
-- **Worker:** separate always-on Node service running `npm run worker`.
-- **Queue:** managed Redis for BullMQ (recommended whenever the worker is independently deployed).
+- **Database:** optional for preview; managed PostgreSQL with TLS for workspaces and persistence.
+- **Worker:** separate always-on Node service running `npm run worker` when ingestion is enabled.
+- **Queue:** managed Redis for BullMQ when the worker is independently deployed.
 - Use a distinct database and Redis instance for testnet; never share the mainnet deployment's state.
 
 The default `prisma/schema.prisma` remains SQLite for local development. The checked-in PostgreSQL migration is generated from that source schema into `prisma/postgres/` and is used explicitly by production commands.
 
 ## Required environment
 
-Start from `.env.testnet.example` and provide real managed-service values through the hosting platform's secret manager:
+For full functionality, start from `.env.testnet.example` and provide real managed-service values through the hosting platform's secret manager. For a read-only preview, omit `DATABASE_URL`, `DIRECT_DATABASE_URL`, and `REDIS_URL`:
 
 ```dotenv
 NODE_ENV=production
@@ -42,11 +44,11 @@ BDEX_API_ENABLED=false
 
 For a pooled PostgreSQL provider, use its pooled endpoint for `DATABASE_URL` and direct/unpooled endpoint for `DIRECT_DATABASE_URL` (used by migrations). Testnet RPC, chain ID and explorer defaults are supplied by the application. Override them only when operating a verified private/testnet provider. `BDEX_API_ENABLED=false` is explicit; BDEX and DeFiLlama's BOT Chain TVL remain blocked in testnet mode even if somebody accidentally changes that flag. Secrets must be configured in the host dashboard, not committed to this repository.
 
-Production builds require PostgreSQL `DATABASE_URL` and `DIRECT_DATABASE_URL`. If `BOT_NETWORK` is omitted in production, it defaults to `testnet`; set it explicitly when configuring Vercel for clarity. `NEXT_PUBLIC_APP_URL` can be set to the custom production domain; otherwise the app derives it from Vercel's deployment URL. Sessions use random opaque tokens stored as hashes in the database; there is no separate `AUTH_SECRET` requirement.
+Production builds accept missing database URLs for read-only preview mode. If `DATABASE_URL` is supplied, it must be PostgreSQL; `DIRECT_DATABASE_URL` is used for migrations. Without a database, wallet sign-in, workspaces, data ingestion, alert persistence, and evidence reports are unavailable. If `BOT_NETWORK` is omitted in production, it defaults to `testnet`. `NEXT_PUBLIC_APP_URL` can be set to the custom production domain; otherwise the app derives it from Vercel's deployment URL. Sessions use random opaque tokens stored as hashes in the database; there is no separate `AUTH_SECRET` requirement.
 
-## First deployment / database initialization
+## Enabling PostgreSQL persistence
 
-Run from the project root with `DATABASE_URL` and `DIRECT_DATABASE_URL` available; set `BOT_NETWORK=testnet` for clarity:
+To enable user accounts and persistent features later, run from the project root with `DATABASE_URL` and `DIRECT_DATABASE_URL` available; set `BOT_NETWORK=testnet` for clarity:
 
 ```bash
 npm ci
@@ -64,11 +66,11 @@ For subsequent deployments, repeat `db:deploy:postgres` before the application r
 ## Vercel web/API service
 
 1. Import the repository into Vercel and configure the project root.
-2. Add `DATABASE_URL` and `DIRECT_DATABASE_URL` to Vercel's **Production** environment. `BOT_NETWORK` defaults to `testnet` in production; optionally set it explicitly. The included `vercel.json` selects `npm run build:postgres`.
-3. Set the managed PostgreSQL URLs as protected environment variables. Set `NEXT_PUBLIC_APP_URL` if using a custom domain; otherwise the app uses Vercel's deployment URL. Rebuild whenever `BOT_NETWORK` changes so the build and runtime network stay aligned.
-4. Before first traffic, run `npm run db:prepare:postgres`, `npm run db:deploy:postgres`, and `npm run db:seed` from a trusted release environment with the same database credentials.
+2. For read-only preview, no database settings are required. `BOT_NETWORK` defaults to `testnet` in production; optionally set it explicitly. The included `vercel.json` selects `npm run build:postgres`; the Prisma generator uses a build-only placeholder URL and does not connect to a database.
+3. To enable persistence, add managed PostgreSQL `DATABASE_URL` and `DIRECT_DATABASE_URL` as protected environment variables, then run the migrations and seed steps above.
+4. Set `NEXT_PUBLIC_APP_URL` if using a custom domain; otherwise the app derives it from Vercel's deployment URL. Rebuild whenever `BOT_NETWORK` changes so the build and runtime network stay aligned.
 5. Configure function duration/region based on the Vercel plan and database region. Long historical ingestion belongs in the worker service, not a user-facing request.
-6. Deploy. Verify `/api/network` reports `network: "testnet"`, `chainId: 968`, and check `/api/health`.
+6. Deploy. Verify `/api/network` reports `network: "testnet"`, `chainId: 968`, `databaseConfigured` matches the selected mode, and check `/api/health`.
 
 Vercel does not keep a background process alive; do not run the ingestion worker inside a serverless function.
 

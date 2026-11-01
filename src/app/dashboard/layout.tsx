@@ -64,6 +64,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <Link href="/dashboard" className="text-sm text-[var(--color-text-secondary)]">Menu</Link>
         </header>
         <main className="mx-auto max-w-6xl px-6 py-8">
+          {!env.DATABASE_ENABLED && (
+            <div className="mb-6 rounded-md border border-[var(--color-blue)]/40 bg-[var(--color-blue)]/5 px-4 py-3 text-xs leading-relaxed text-[var(--color-blue)]">
+              Database-free preview: public pages and live provider checks are available. Wallet sign-in, workspaces, ingestion, alerts, and evidence storage are paused until PostgreSQL is configured.
+            </div>
+          )}
           {env.BOT_NETWORK === "testnet" && (
             <div className="mb-6 rounded-md border border-[var(--color-amber)]/40 bg-[var(--color-amber)]/5 px-4 py-3 text-xs leading-relaxed text-[var(--color-amber)]">
               <strong>BOT Chain testnet mode · chain ID {env.BOT_CHAIN_ID}</strong> — testnet activity is for integration testing only. It cannot establish BOT mainnet incentive eligibility; programme reward outputs are suppressed.

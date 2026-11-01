@@ -17,6 +17,7 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [databaseConfigured, setDatabaseConfigured] = useState<boolean | null>(null);
   const [form, setForm] = useState({ name: "", category: "defi", deployStatus: "mainnet", website: "", defiLlamaSlug: "", description: "" });
 
   const load = useCallback(() => {
@@ -32,6 +33,7 @@ export default function ProjectsPage() {
     fetch("/api/network", { cache: "no-store" })
       .then((r) => r.json())
       .then((network) => {
+        setDatabaseConfigured(Boolean(network.databaseConfigured));
         if (network.network === "testnet") {
           setForm((current) => current.deployStatus === "planned" ? { ...current, deployStatus: "testnet" } : current);
         }
@@ -68,6 +70,12 @@ export default function ProjectsPage() {
           Project workspaces group your tracked BOT Chain addresses and incentive schemes.
         </p>
       </div>
+
+      {databaseConfigured === false && (
+        <div className="rounded-md border border-[var(--color-amber)]/40 bg-[var(--color-amber)]/5 px-4 py-3 text-sm text-[var(--color-amber)]">
+          Project workspaces are disabled in this read-only preview. Configure PostgreSQL in Vercel to enable them.
+        </div>
+      )}
 
       {error && <p className="rounded-md border border-[var(--color-red)]/40 bg-[var(--color-red)]/10 px-4 py-2 text-sm text-[var(--color-red)]">{error}</p>}
 
@@ -162,10 +170,10 @@ export default function ProjectsPage() {
           </div>
           <button
             type="submit"
-            disabled={creating}
+            disabled={creating || databaseConfigured !== true}
             className="rounded-md bg-[var(--color-accent-green)] px-4 py-2 text-sm font-medium text-[#04120c] hover:brightness-110 disabled:opacity-60"
           >
-            {creating ? "Creating…" : "Create project"}
+            {databaseConfigured === false ? "Database required" : databaseConfigured === null ? "Checking configuration…" : creating ? "Creating…" : "Create project"}
           </button>
           <p className="text-[11px] text-[var(--color-text-muted)]">
             A wallet signature session is required to create projects.

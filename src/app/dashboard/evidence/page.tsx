@@ -2,10 +2,14 @@ import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import Link from "next/link";
 import { StatusBadge } from "@/components/status-badge";
+import { databaseAvailable } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
 export default async function EvidencePage() {
+  if (!databaseAvailable) {
+    return <div className="py-16 text-center text-sm text-[var(--color-text-secondary)]">Evidence reports require PostgreSQL storage. The rest of the preview remains available.</div>;
+  }
   const user = await getSessionUser();
   if (!user) {
     return (

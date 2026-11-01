@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireProjectAccess } from "@/lib/auth";
+import { requireProjectAccess, requireSession } from "@/lib/auth";
 import { jsonError } from "@/lib/api";
 import { reportToCsv } from "@/lib/evidence";
 
@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    await requireSession();
     const { id } = await params;
     const report = await prisma.evidenceReport.findUnique({ where: { id } });
     if (!report) return NextResponse.json({ error: "not found" }, { status: 404 });

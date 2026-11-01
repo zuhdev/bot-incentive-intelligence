@@ -1,9 +1,13 @@
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { databaseAvailable } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
 export default async function AlertsPage() {
+  if (!databaseAvailable) {
+    return <div className="py-16 text-center text-sm text-[var(--color-text-secondary)]">Alerts require PostgreSQL storage. Live provider status remains available in Settings.</div>;
+  }
   const user = await getSessionUser();
   if (!user) {
     return <div className="py-16 text-center text-sm text-[var(--color-text-secondary)]">Connect your wallet to view alerts.</div>;

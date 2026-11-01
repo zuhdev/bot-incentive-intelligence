@@ -1,8 +1,14 @@
 import { z } from "zod";
 
+const optionalEnvironmentUrl = z.preprocess(
+  (value) => typeof value === "string" && value.trim() === "" ? undefined : value,
+  z.string().url().optional(),
+);
+
 const schema = z.object({
-  DATABASE_URL: z.string().min(1).default("file:./dev.db"),
-  DIRECT_DATABASE_URL: z.string().min(1).optional(),
+  // Omit both URLs for a database-free, read-only preview deployment.
+  DATABASE_URL: optionalEnvironmentUrl,
+  DIRECT_DATABASE_URL: optionalEnvironmentUrl,
   BOT_NETWORK: z.enum(["mainnet", "testnet"]).optional(),
   BOT_MAINNET_RPC_URL: z.string().url().default("https://rpc.botchain.ai"),
   BOT_TESTNET_RPC_URL: z.string().url().default("https://rpc.bohr.life"),
@@ -20,7 +26,7 @@ const schema = z.object({
   INGEST_BACKFILL_MAX_BLOCKS: z.coerce.number().int().positive().default(500_000),
   REDIS_URL: z.string().optional(),
   COINGECKO_API_KEY: z.string().optional(),
-  NEXT_PUBLIC_APP_URL: z.string().url().optional(),
+  NEXT_PUBLIC_APP_URL: optionalEnvironmentUrl,
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 
@@ -37,16 +43,8 @@ const base = parsed.success ? parsed.data : schema.parse({});
 const selectedNetwork = base.BOT_NETWORK ?? (base.NODE_ENV === "production" ? "testnet" : "mainnet");
 const vercelHost = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
 const appUrl = base.NEXT_PUBLIC_APP_URL ?? (vercelHost ? `https://${vercelHost}` : "http://localhost:3000");
-if (process.env.NODE_ENV === "production") {
-  if (!process.env.DATABASE_URL || !/^postgres(?:ql)?:\/\//i.test(base.DATABASE_URL)) {
-    throw new Error("[env] Production deployments require PostgreSQL; SQLite is supported for local development only.");
-  }
-  if (!base.DIRECT_DATABASE_URL) {
-    throw new Error("[env] DIRECT_DATABASE_URL is required for PostgreSQL migrations and client generation in production.");
-  }
-  if (appUrl.includes("localhost")) {
-    throw new Error("[env] Set NEXT_PUBLIC_APP_URL or deploy on Vercel so its deployment URL can be used for the sign-in domain.");
-  }
+if (process.env.NODE_ENV === "production" && base.DATABASE_URL && !/^postgres(?:ql)?:\/\//i.test(base.DATABASE_URL)) {
+  throw new Error("[env] Production DATABASE_URL must be PostgreSQL. Omit it for database-free read-only preview mode.");
 }
 const testnet = selectedNetwork === "testnet";
 
@@ -56,6 +54,7 @@ const env = {
   BOT_NETWORK: selectedNetwork,
   NEXT_PUBLIC_APP_URL: appUrl,
   DIRECT_DATABASE_URL: base.DIRECT_DATABASE_URL ?? base.DATABASE_URL,
+  DATABASE_ENABLED: Boolean(base.DATABASE_URL),
   BOT_CHAIN_ID: testnet ? base.BOT_TESTNET_CHAIN_ID : base.BOT_MAINNET_CHAIN_ID,
   BOT_RPC_URL: testnet ? base.BOT_TESTNET_RPC_URL : base.BOT_MAINNET_RPC_URL,
   BOTSCAN_API_URL: testnet ? base.BOT_TESTNET_SCAN_API_URL : base.BOT_MAINNET_SCAN_API_URL,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { checkAllProviders } from "@/lib/providers/health";
 import { clientKey, jsonError, rateLimit } from "@/lib/api";
+import { databaseAvailable } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
       status: providers.filter((p) => p.supported).every((p) => p.ok) ? "operational" : "degraded",
       checkedAt: new Date().toISOString(),
+      databaseConfigured: databaseAvailable,
       providers,
     });
   } catch (err) {

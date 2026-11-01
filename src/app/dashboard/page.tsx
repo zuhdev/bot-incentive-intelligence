@@ -7,6 +7,18 @@ export const dynamic = "force-dynamic";
 export default async function DashboardOverview() {
   const data = await getOverview();
 
+  if (data.databaseAvailable === false) {
+    return (
+      <div className="mx-auto max-w-2xl rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-bg-secondary)] p-8 text-center">
+        <h1 className="text-xl font-semibold">Read-only preview</h1>
+        <p className="mt-3 text-sm leading-relaxed text-[var(--color-text-secondary)]">
+          The site and live network status are available, but wallet sign-in, project workspaces, ingestion, and evidence storage need PostgreSQL. Add a managed PostgreSQL <code>DATABASE_URL</code> and <code>DIRECT_DATABASE_URL</code> in Vercel to enable them.
+        </p>
+        <Link href="/dashboard/programmes" className="mt-5 inline-block text-sm text-[var(--color-accent-green)]">Explore incentive programmes →</Link>
+      </div>
+    );
+  }
+
   if (!data.authenticated || !data.stats) {
     return (
       <div className="mx-auto max-w-xl py-16 text-center">

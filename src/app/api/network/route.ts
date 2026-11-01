@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ACTIVE_CHAIN } from "@/lib/chains";
 import env from "@/lib/env";
+import { databaseAvailable } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,7 @@ export async function GET() {
     name: ACTIVE_CHAIN.name,
     rpcUrl: ACTIVE_CHAIN.rpcUrl,
     explorerUrl: ACTIVE_CHAIN.explorerUrl,
+    databaseConfigured: databaseAvailable,
     nativeCurrency: ACTIVE_CHAIN.nativeCurrency,
     incentiveEvidenceNetwork: env.BOT_NETWORK === "mainnet",
   });

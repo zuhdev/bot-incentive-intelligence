@@ -15,6 +15,7 @@ export default async function SettingsPage() {
 
   const config = [
     ["Active network", `${env.BOT_NETWORK} · chain ${env.BOT_CHAIN_ID}`],
+    ["Database mode", env.DATABASE_ENABLED ? "configured" : "read-only preview (no DATABASE_URL)"],
     ["Active RPC", ACTIVE_CHAIN.rpcUrl],
     ["Active explorer", ACTIVE_CHAIN.explorerUrl],
     ["Active explorer API", ACTIVE_CHAIN.explorerApi],

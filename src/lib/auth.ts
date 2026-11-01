@@ -10,7 +10,7 @@
 import { randomBytes, createHash } from "node:crypto";
 import { cookies } from "next/headers";
 import { verifyMessage } from "viem";
-import { prisma } from "@/lib/db";
+import { databaseAvailable, prisma } from "@/lib/db";
 import env from "@/lib/env";
 
 const SESSION_COOKIE = "bii_session";
@@ -36,6 +36,7 @@ function buildChallengeMessage(address: string, nonce: string, domain: string): 
 }
 
 export async function createChallenge(address: string): Promise<{ message: string; nonce: string }> {
+  if (!databaseAvailable) throw new AuthError("Wallet sign-in is unavailable until a database is configured.", 503);
   const addr = normalizeAddress(address);
   const nonce = randomBytes(16).toString("hex");
   const domain = env.NEXT_PUBLIC_APP_URL.replace(/^https?:\/\//, "");
@@ -60,6 +61,7 @@ export async function verifyChallengeAndSignIn(
   address: string,
   signature: `0x${string}`,
 ): Promise<{ sessionToken: string } | { error: string }> {
+  if (!databaseAvailable) throw new AuthError("Wallet sign-in is unavailable until a database is configured.", 503);
   const addr = normalizeAddress(address);
   const wallet = await prisma.wallet.findUnique({ where: { address: addr } });
   if (!wallet) return { error: "no challenge found for this address" };
@@ -115,6 +117,7 @@ export interface SessionUser {
 }
 
 export async function getSessionUser(): Promise<SessionUser | null> {
+  if (!databaseAvailable) return null;
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;
   if (!token) return null;
@@ -127,6 +130,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 }
 
 export async function requireSession(): Promise<SessionUser> {
+  if (!databaseAvailable) throw new AuthError("This preview is read-only. Configure PostgreSQL to enable sign-in and workspaces.", 503);
   const user = await getSessionUser();
   if (!user) throw new AuthError("authentication required", 401);
   return user;
@@ -155,7 +159,7 @@ export class AuthError extends Error {
 export async function signOut() {
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;
-  if (token) {
+  if (databaseAvailable && token) {
     await prisma.session.deleteMany({
       where: { tokenHash: createHash("sha256").update(token).digest("hex") },
     });

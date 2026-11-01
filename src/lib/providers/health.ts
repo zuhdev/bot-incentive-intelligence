@@ -3,7 +3,7 @@
  * status in the data_providers table. Powers the "Data ingestion status"
  * widgets and prevents silent provider outages.
  */
-import { prisma } from "@/lib/db";
+import { databaseAvailable, prisma } from "@/lib/db";
 import env from "@/lib/env";
 import { getBlockNumber } from "./rpc";
 import { getPairs } from "./bdex";
@@ -110,27 +110,29 @@ export async function checkAllProviders(): Promise<ProviderStatus[]> {
     });
   }
 
-  // Persist
-  for (const s of statuses) {
-    await prisma.dataProvider.upsert({
-      where: { name: s.name },
-      create: {
-        name: s.name,
-        kind: s.kind,
-        enabled: s.supported,
-        lastCheckAt: new Date(),
-        lastOkAt: s.ok ? new Date() : null,
-        lastError: s.error ?? null,
-        latencyMs: s.latencyMs,
-      },
-      update: {
-        enabled: s.supported,
-        lastCheckAt: new Date(),
-        lastOkAt: s.ok ? new Date() : undefined,
-        lastError: s.error ?? null,
-        latencyMs: s.latencyMs,
-      },
-    });
+  // Persist when configured. Database-free preview still performs live checks.
+  if (databaseAvailable) {
+    for (const s of statuses) {
+      await prisma.dataProvider.upsert({
+        where: { name: s.name },
+        create: {
+          name: s.name,
+          kind: s.kind,
+          enabled: s.supported,
+          lastCheckAt: new Date(),
+          lastOkAt: s.ok ? new Date() : null,
+          lastError: s.error ?? null,
+          latencyMs: s.latencyMs,
+        },
+        update: {
+          enabled: s.supported,
+          lastCheckAt: new Date(),
+          lastOkAt: s.ok ? new Date() : undefined,
+          lastError: s.error ?? null,
+          latencyMs: s.latencyMs,
+        },
+      });
+    }
   }
 
   return statuses;

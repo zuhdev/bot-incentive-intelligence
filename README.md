@@ -41,9 +41,11 @@ Open http://localhost:3000 — landing page; http://localhost:3000/dashboard —
 
 ## Testnet deployment
 
-Testnet deployment uses BOT Chain chain ID 968 (`https://rpc.bohr.life`) and requires managed PostgreSQL plus a separate worker/Redis service. Follow [`docs/testnet-deployment.md`](docs/testnet-deployment.md); live testnet RPC and Blockscout v2 checks are recorded in [`docs/testnet-data-verification.md`](docs/testnet-data-verification.md).
+Testnet deployment uses BOT Chain chain ID 968 (`https://rpc.bohr.life`). A database-free Vercel preview supports the public landing page, programme references, network metadata, and live provider checks. Add managed PostgreSQL to enable wallet sign-in, project workspaces, ingestion, alerts, and evidence storage. Follow [`docs/testnet-deployment.md`](docs/testnet-deployment.md); live testnet RPC and Blockscout v2 checks are recorded in [`docs/testnet-data-verification.md`](docs/testnet-data-verification.md).
 
 Runtime network selection is controlled by `BOT_NETWORK=mainnet|testnet`. Testnet data is explicitly excluded from incentive eligibility outputs. Verified mainnet-only BDEX and DeFiLlama TVL integrations are disabled rather than reused in testnet mode.
+
+For a temporary Vercel preview without PostgreSQL, omit `DATABASE_URL` and `DIRECT_DATABASE_URL`. Public pages, programme references, network metadata, and live provider checks work in read-only mode; sign-in, workspaces, ingestion, alerts, and report storage remain disabled until PostgreSQL is connected. Production defaults to the testnet network when `BOT_NETWORK` is omitted.
 
 ### Live-data smoke test (real network calls)
 
