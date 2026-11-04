@@ -86,10 +86,11 @@ The worker uses BullMQ repeatable jobs when `REDIS_URL` is configured. Health-ch
 
 ## Container deployment alternative
 
-The repository includes a Dockerfile. Build with deployment build args (they are used during Next's build-time environment validation, not baked into browser code):
+The repository includes a Dockerfile. Its image defaults to `BOT_NETWORK=mainnet`; pass `--build-arg BOT_NETWORK=testnet` for this testnet deployment. Build with deployment build args (they are used during Next's build-time environment validation, not baked into browser code):
 
 ```bash
 docker build \
+  --build-arg BOT_NETWORK=testnet \
   --build-arg DATABASE_URL='postgresql://build:build@127.0.0.1:5432/build?schema=public' \
   --build-arg DIRECT_DATABASE_URL='postgresql://build:build@127.0.0.1:5432/build?schema=public' \
   -t bot-incentive-intelligence:testnet .

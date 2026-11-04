@@ -1,0 +1,16 @@
+{
+  "contract": "EvidenceReportAnchor",
+  "network": "BOT Chain",
+  "chainId": 677,
+  "address": "0x5a07beab87972ab36975b2d5642cc162ac186741",
+  "deployer": "0xBB29080614AD8343fe8B674e0FE4FfE037712cF2",
+  "transactionHash": "0x88d38ddb6547e496fc22ecd313827845426c62a40eaac9851651e3ab1500d8ae",
+  "blockNumber": "29124799",
+  "gasUsed": "109193",
+  "sourceFile": "contracts/EvidenceReportAnchor.sol",
+  "sourceSha256": "3a33661aab39fd4acaf4bc0359c99c29082b8b2d43062c966b3b535a59e9696f",
+  "compiler": "0.8.38+commit.1835d247.Emscripten.clang",
+  "evmVersion": "paris",
+  "deployedAt": "2026-11-04T21:33:58.548Z",
+  "disclaimer": "Hash anchoring proves only that an account emitted these hashes; it is not official BOT approval or eligibility certification."
+}

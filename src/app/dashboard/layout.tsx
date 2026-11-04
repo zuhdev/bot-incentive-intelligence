@@ -74,6 +74,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <strong>BOT Chain testnet mode · chain ID {env.BOT_CHAIN_ID}</strong> — testnet activity is for integration testing only. It cannot establish BOT mainnet incentive eligibility; programme reward outputs are suppressed.
             </div>
           )}
+          {env.BOT_NETWORK === "mainnet" && (
+            <div className="mb-6 rounded-md border border-[var(--color-accent-green)]/40 bg-[var(--color-accent-green)]/5 px-4 py-3 text-xs leading-relaxed text-[var(--color-accent-green)]">
+              <strong>BOT Chain mainnet · chain ID {env.BOT_CHAIN_ID}</strong> — live mainnet data. Evaluations use verified mainnet evidence; results remain preliminary and are not official BOT eligibility determinations.
+            </div>
+          )}
           {children}
         </main>
       </div>

@@ -39,13 +39,21 @@ npm run dev               # dev server
 
 Open http://localhost:3000 — landing page; http://localhost:3000/dashboard — workspace.
 
-## Testnet deployment
+## Deployment
+
+### Mainnet (chain ID 677)
+
+Follow [`docs/mainnet-deployment.md`](docs/mainnet-deployment.md) and start from [`.env.mainnet.example`](.env.mainnet.example). Mainnet is the only network that produces incentive eligibility evidence. Use a dedicated PostgreSQL/Redis instance and worker service; never share state with testnet. The EvidenceReportAnchor mainnet contract is deployed and verified at `0x5a07beab87972ab36975b2d5642cc162ac186741` (`deployments/bot-mainnet-evidence-anchor.json`; recheck with `npm run contract:mainnet:verify`).
+
+`BOT_NETWORK` must be set to `mainnet` explicitly: production defaults to testnet when it is omitted, and the value is read at build and runtime, so rebuild whenever it changes. In mainnet mode BDEX and DeFiLlama BOT Chain TVL are enabled; in testnet mode they are disabled rather than reused.
+
+### Testnet (chain ID 968)
 
 Testnet deployment uses BOT Chain chain ID 968 (`https://rpc.bohr.life`). A database-free Vercel preview supports the public landing page, programme references, network metadata, and live provider checks. Add managed PostgreSQL to enable wallet sign-in, project workspaces, ingestion, alerts, and evidence storage. Follow [`docs/testnet-deployment.md`](docs/testnet-deployment.md); live testnet RPC and Blockscout v2 checks are recorded in [`docs/testnet-data-verification.md`](docs/testnet-data-verification.md).
 
 Runtime network selection is controlled by `BOT_NETWORK=mainnet|testnet`. Testnet data is explicitly excluded from incentive eligibility outputs. Verified mainnet-only BDEX and DeFiLlama TVL integrations are disabled rather than reused in testnet mode.
 
-For a temporary Vercel preview without PostgreSQL, omit `DATABASE_URL` and `DIRECT_DATABASE_URL`. Public pages, programme references, network metadata, and live provider checks work in read-only mode; sign-in, workspaces, ingestion, alerts, and report storage remain disabled until PostgreSQL is connected. Production defaults to the testnet network when `BOT_NETWORK` is omitted.
+For a temporary Vercel preview without PostgreSQL, omit `DATABASE_URL` and `DIRECT_DATABASE_URL`. Public pages, programme references, network metadata, and live provider checks work in read-only mode; sign-in, workspaces, ingestion, alerts, and report storage remain disabled until PostgreSQL is connected.
 
 ### Live-data smoke test (real network calls)
 
@@ -92,6 +100,7 @@ Scheduled jobs: tail block/event ingestion, TVL snapshots, provider health check
 | BOT mainnet/testnet selection, wallet chain switching, testnet eligibility guard | `/api/network`, `src/lib/env.ts`, `src/lib/rules/evaluate.ts` |
 | PostgreSQL deployment schema + initial migration, isolated from local SQLite migrations | `prisma/postgres/`, `npm run db:deploy:postgres` |
 | Testnet EvidenceReportAnchor contract deployed and RPC/Blockscout verified | `contracts/EvidenceReportAnchor.sol`, `deployments/bot-testnet-evidence-anchor.json` |
+| Mainnet EvidenceReportAnchor contract deployed and RPC/Blockscout verified | `deployments/bot-mainnet-evidence-anchor.json`, `docs/mainnet-deployment.md` |
 
 ### Implemented but awaiting external credentials/infrastructure
 | Feature | What's needed |
@@ -151,7 +160,8 @@ Scheduled jobs: tail block/event ingestion, TVL snapshots, provider health check
 ## Key documents
 
 - `docs/connectivity-report.md` — **live verification of every external integration** (requests, responses, limits, freshness)
+- `docs/mainnet-deployment.md` — mainnet Vercel/Node deployment, PostgreSQL migrations, worker/Redis, contract deployment and smoke checks
 - `docs/testnet-data-verification.md` — live BOT testnet RPC, explorer, transaction and token-transfer checks
-- `docs/testnet-deployment.md` — Vercel/Node deployment, PostgreSQL migrations, worker/Redis and smoke checks
+- `docs/testnet-deployment.md` — testnet Vercel/Node deployment, PostgreSQL migrations, worker/Redis and smoke checks
 
-The testnet EvidenceReportAnchor address and deployment transaction are documented in `docs/testnet-deployment.md`. Its deployment record contains no wallet key; the local deployer key stays in the ignored `.secrets/` directory.
+The testnet EvidenceReportAnchor address and deployment transaction are documented in `docs/testnet-deployment.md`. Its deployment record contains no wallet key; the local deployer key stays in the ignored `.secrets/` directory. Mainnet deployment uses the same contract source with a separate deployer account; see `docs/mainnet-deployment.md`.

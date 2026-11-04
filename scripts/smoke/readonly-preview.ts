@@ -1,4 +1,4 @@
-/** Smoke test database-free production preview behavior and live testnet status. */
+/** Smoke test database-free production preview behavior and live provider status for the selected network. */
 import env from "../../src/lib/env";
 import { databaseAvailable } from "../../src/lib/db";
 import { requireSession, getSessionUser } from "../../src/lib/auth";
@@ -6,8 +6,8 @@ import { getOverview } from "../../src/lib/overview";
 import { checkAllProviders } from "../../src/lib/providers/health";
 
 async function main() {
-  if (env.NODE_ENV !== "production" || env.BOT_NETWORK !== "testnet" || databaseAvailable) {
-    throw new Error("Set NODE_ENV=production, BOT_NETWORK=testnet, and omit DATABASE_URL/DIRECT_DATABASE_URL.");
+  if (env.NODE_ENV !== "production" || databaseAvailable) {
+    throw new Error("Set NODE_ENV=production, set BOT_NETWORK explicitly (mainnet or testnet), and omit DATABASE_URL/DIRECT_DATABASE_URL.");
   }
   const [overview, user, providers] = await Promise.all([
     getOverview(),
@@ -25,7 +25,7 @@ async function main() {
     throw new Error("Database-free preview did not return its expected read-only/auth-disabled state.");
   }
   if (!providers.filter((provider) => provider.supported).every((provider) => provider.ok)) {
-    throw new Error("One or more supported live testnet providers are unhealthy.");
+    throw new Error(`One or more supported live ${env.BOT_NETWORK} providers are unhealthy.`);
   }
 
   console.log(JSON.stringify({
